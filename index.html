@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>홍주초등학교 전자기기 대여장부</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 반응형 레이아웃을 위한 기본 배경 설정 */
+        body { background-color: #F0F4F8; min-height: 100vh; }
+        
+        /* 날짜 인풋 기본 스타일 숨기기 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 아이콘 컴포넌트
+        const CalendarIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+        const ChevronLeftIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="15 18 9 12 15 6"></polyline></svg>;
+        const ChevronRightIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="9 18 15 12 9 6"></polyline></svg>;
+        const TabletIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>;
+        const LaptopIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"></path></svg>;
+        const InfoIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
+        const ClockIcon = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
+
+        // 날짜 포맷 함수들
+        const getDateString = (date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`; // YYYY-MM-DD
+        };
+
+        const formatDisplayDate = (date) => {
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${days[date.getDay()]})`;
+        };
+
+        const App = () => {
+            // 날짜 및 시간 상태 관리 (시계용 현재 시간과 조회용 날짜 분리)
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [selectedDate, setSelectedDate] = useState(new Date());
+
+            // 1초마다 시계 업데이트
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+            
+            const [selectedDevice, setSelectedDevice] = useState('태블릿');
+            const [selectedGrade, setSelectedGrade] = useState(1);
+            const [selectedClass, setSelectedClass] = useState(1);
+
+            const classesPerGrade = { 1: 5, 2: 2, 3: 2, 4: 2, 5: 1, 6: 1 };
+            const afterSchoolClasses = ['방과후', '돌봄'];
+
+            // 학년 변경 시 기본 반 초기화
+            useEffect(() => {
+                if (selectedGrade === '방과후') {
+                    setSelectedClass(afterSchoolClasses[0]);
+                } else {
+                    setSelectedClass(1);
+                }
+            }, [selectedGrade]);
+
+            const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbw_AhT-ADMmmkwKDEHCNWYlu8cbBgxlyJviEcEg1yagdGaY-dLK8N6oINeNZUxpFBtuMw/exec';
+
+            const getGroup = (grade) => {
+                if (grade === '방과후') return '방과후';
+                if (grade <= 2) return '1-2학년';
+                if (grade <= 4) return '3-4학년';
+                return '5-6학년';
+            };
+            const currentGroup = getGroup(selectedGrade);
+
+            // 스케줄 초기 생성 로직 (특정 날짜용)
+            const createInitialSchedules = () => {
+                const groups = ['1-2학년', '3-4학년', '5-6학년', '방과후'];
+                const devices = ['태블릿', '웨일북'];
+                const base = [
+                    { period: 1, name: '1교시', time: '09:00~09:40', status: 'available', usedBy: null },
+                    { period: 2, name: '2교시', time: '09:50~10:30', status: 'available', usedBy: null, isCurrent: true },
+                    { period: 3, name: '3교시', time: '10:40~11:20', status: 'available', usedBy: null },
+                    { period: 4, name: '4교시', time: '11:30~12:10', status: 'available', usedBy: null },
+                    { period: 5, name: '5교시', time: '13:00~13:40', status: 'available', usedBy: null },
+                    { period: 6, name: '6교시', time: '13:50~14:30', status: 'available', usedBy: null },
+                    { period: 7, name: '방과후', time: '14:40~16:00', status: 'available', usedBy: null },
+                ];
+                
+                let initial = {};
+                groups.forEach(g => {
+                    initial[g] = {};
+                    devices.forEach(d => { initial[g][d] = base.map(s => ({...s})); });
+                });
+                return initial;
+            };
+
+            // 날짜별로 스케줄 데이터를 관리하는 딕셔너리 구조
+            const [schedulesByDate, setSchedulesByDate] = useState({
+                [getDateString(new Date())]: createInitialSchedules()
+            });
+
+            // 현재 선택된 날짜의 스케줄 데이터가 없으면 자동 생성
+            const dateStr = getDateString(selectedDate);
+            const daySchedules = schedulesByDate[dateStr] || createInitialSchedules();
+            const currentSchedule = daySchedules[currentGroup][selectedDevice];
+            const currentPeriodInfo = currentSchedule.find(s => s.isCurrent);
+
+            const timeString = currentTime.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+            // 대여/반납 액션 핸들러
+            const handleAction = async (periodNum, action) => {
+                const activeDateStr = getDateString(selectedDate); // 작업이 일어난 달력 날짜
+
+                setSchedulesByDate(prev => {
+                    const activeDaySchedule = prev[activeDateStr] || createInitialSchedules();
+                    const updated = activeDaySchedule[currentGroup][selectedDevice].map(item => {
+                        if (item.period === periodNum) {
+                            if (action === 'cancel' || action === 'return') return { ...item, status: 'available', usedBy: null };
+                            if (action === 'borrow') return { ...item, status: 'in-use', usedBy: { grade: selectedGrade, class: selectedClass } };
+                        }
+                        return item;
+                    });
+                    return { 
+                        ...prev, 
+                        [activeDateStr]: { 
+                            ...activeDaySchedule, 
+                            [currentGroup]: { 
+                                ...activeDaySchedule[currentGroup], 
+                                [selectedDevice]: updated 
+                            } 
+                        } 
+                    };
+                });
+
+                // 구글 시트에 전송될 상세 데이터 구성
+                const recordData = {
+                    date: formatDisplayDate(selectedDate),  // 기준 장부 날짜 (예: 2026년 4월 2일)
+                    time: currentTime.toLocaleTimeString('ko-KR'), // 버튼을 누른 실제 시간
+                    group: currentGroup, 
+                    device: selectedDevice, 
+                    grade: selectedGrade, 
+                    classNum: selectedClass,
+                    period: periodNum, 
+                    action: action === 'borrow' ? '대여' : action === 'return' ? '반납' : '취소'
+                };
+
+                if (GOOGLE_SHEET_URL) {
+                    try {
+                        await fetch(GOOGLE_SHEET_URL, {
+                            method: 'POST', mode: 'no-cors',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(recordData)
+                        });
+                    } catch (error) { console.error(error); }
+                }
+            };
+
+            // 날짜 이동 함수들
+            const handlePrevDay = () => setSelectedDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 1); return d; });
+            const handleNextDay = () => setSelectedDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 1); return d; });
+            const handleToday = () => setSelectedDate(new Date());
+            const handleDateChange = (e) => { if (e.target.value) setSelectedDate(new Date(e.target.value)); };
+
+            const isToday = getDateString(selectedDate) === getDateString(new Date());
+            
+            const classOptions = selectedGrade === '방과후' 
+                ? afterSchoolClasses 
+                : Array.from({ length: classesPerGrade[selectedGrade] }, (_, i) => i + 1);
+
+            return (
+                <div className="font-sans text-gray-800 pb-10">
+                    
+                    {/* 상단 헤더 영역 - 전체 너비 사용 */}
+                    <header className="bg-[#0284C7] text-white p-4 pb-6 shadow-md z-10 relative">
+                        <div className="max-w-6xl mx-auto flex justify-between items-end">
+                            <div>
+                                <div className="text-xs text-sky-100 mb-1">홍주초등학교</div>
+                                <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">전자기기 대여장부</h1>
+                            </div>
+                            <div className="text-right flex items-baseline gap-3">
+                                <div className="text-sm lg:text-base text-sky-100 font-medium hidden sm:block">{formatDisplayDate(selectedDate)}</div>
+                                <div className="text-3xl lg:text-4xl font-bold">{timeString}</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* 메인 레이아웃: PC에서는 양옆 분할, 모바일에서는 위아래 배치 */}
+                    <main className="max-w-6xl mx-auto mt-6 px-4 flex flex-col lg:flex-row gap-6">
+                        
+                        {/* 왼쪽 (또는 상단) 제어부 */}
+                        <div className="w-full lg:w-[400px] xl:w-[450px] shrink-0 space-y-5">
+                            
+                            {/* 기기 선택 탭 */}
+                            <div className="bg-white p-1.5 rounded-2xl shadow-sm flex border border-gray-200">
+                                <button onClick={() => setSelectedDevice('태블릿')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[15px] font-bold transition-all ${selectedDevice === '태블릿' ? 'bg-[#0284C7] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                    <TabletIcon size={20} /> 태블릿
+                                </button>
+                                <button onClick={() => setSelectedDevice('웨일북')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[15px] font-bold transition-all ${selectedDevice === '웨일북' ? 'bg-[#0284C7] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                    <LaptopIcon size={20} /> 웨일북
+                                </button>
+                            </div>
+
+                            {/* 상태 표시 바 */}
+                            <div className="bg-[#F0F9FF] border border-[#BAE6FD] text-[#0369A1] p-4 rounded-2xl flex items-start gap-3 shadow-sm">
+                                <InfoIcon size={20} className="text-[#0EA5E9] shrink-0 mt-0.5" />
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-[14px]">[{currentGroup}] {currentPeriodInfo?.name} 현재 상태 ({selectedDevice})</span>
+                                    <span className="text-[13px] opacity-90 mt-1">
+                                        {currentPeriodInfo?.status === 'in-use' 
+                                            ? `${currentPeriodInfo.usedBy.grade === '방과후' ? '' : currentPeriodInfo.usedBy.grade+'학년 '}${currentPeriodInfo.usedBy.class}${typeof currentPeriodInfo.usedBy.class === 'number' ? '반' : ''} 사용중` 
+                                            : '현재 대여 가능한 상태입니다.'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* 학년/방과후 및 반 선택 영역 */}
+                            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                                <div>
+                                    <div className="text-[12px] font-bold text-gray-400 mb-2">학년 / 구분 선택</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[1, 2, 3, 4, 5, 6, '방과후'].map((gradeNum) => (
+                                            <button 
+                                                key={`grade-${gradeNum}`} 
+                                                onClick={() => setSelectedGrade(gradeNum)} 
+                                                className={`
+                                                    ${typeof gradeNum === 'number' ? 'w-10' : 'px-4'} h-10 rounded-full font-bold text-[14px] transition-all shadow-sm 
+                                                    ${selectedGrade === gradeNum 
+                                                        ? 'bg-[#0EA5E9] text-white border-[#0284C7]' 
+                                                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}
+                                                `}
+                                            >
+                                                {gradeNum}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-gray-100">
+                                    <div className="text-[12px] font-bold text-gray-400 mb-2">학급 / 프로그램 선택</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {classOptions.map((opt) => (
+                                            <button key={`class-${opt}`} onClick={() => setSelectedClass(opt)} className={`px-4 py-2 rounded-xl border font-bold text-[14px] transition-all shadow-sm ${selectedClass === opt ? 'bg-[#E0F2FE] border-[#7DD3FC] text-[#0284C7]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                                {typeof opt === 'number' ? `${opt}반` : opt}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* 날짜 표시기 (모바일용) */}
+                            <div className="lg:hidden bg-white rounded-xl border border-gray-200 p-3 flex justify-between items-center shadow-sm">
+                                <button onClick={handlePrevDay} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-[#0EA5E9] rounded-lg transition-colors"><ChevronLeftIcon size={20} /></button>
+                                <div className="relative flex items-center justify-center gap-2 font-bold text-[15px] text-gray-800 cursor-pointer flex-1 group">
+                                    <CalendarIcon size={18} className="text-[#0EA5E9] group-hover:scale-110 transition-transform" />
+                                    <span>{formatDisplayDate(selectedDate)}</span>
+                                    <input type="date" className="absolute w-full h-full opacity-0 cursor-pointer" value={getDateString(selectedDate)} onChange={handleDateChange} />
+                                </div>
+                                <button onClick={handleNextDay} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-[#0EA5E9] rounded-lg transition-colors"><ChevronRightIcon size={20} /></button>
+                            </div>
+                            {/* 모바일 오늘로 이동 버튼 */}
+                            {!isToday && (
+                                <div className="lg:hidden flex justify-center -mt-2">
+                                    <button onClick={handleToday} className="bg-sky-100 text-sky-700 text-xs font-bold px-4 py-1.5 rounded-full shadow-sm">오늘로 돌아가기</button>
+                                </div>
+                            )}
+
+                        </div>
+
+                        {/* 오른쪽 (또는 하단) 시간표 리스트 영역 */}
+                        <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-fit">
+                            
+                            {/* 시간표 헤더 (PC 전용 날짜 선택기) */}
+                            <div className="hidden lg:flex justify-between items-center bg-gray-50 px-6 py-4 border-b border-gray-200">
+                                <div className="font-bold text-gray-700 flex items-center gap-2">
+                                    <ClockIcon size={18} className="text-gray-400" />
+                                    일일 대여 현황
+                                </div>
+                                
+                                <div className="flex items-center gap-1">
+                                    <button onClick={handlePrevDay} className="p-1.5 text-gray-400 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronLeftIcon size={18} /></button>
+                                    
+                                    <div className="relative flex items-center gap-2 font-bold text-[14px] text-gray-700 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm cursor-pointer hover:border-[#0EA5E9] transition-colors">
+                                        <CalendarIcon size={16} className="text-[#0EA5E9]" />
+                                        <span>{formatDisplayDate(selectedDate)}</span>
+                                        <input type="date" className="absolute w-full h-full left-0 top-0 opacity-0 cursor-pointer" value={getDateString(selectedDate)} onChange={handleDateChange} />
+                                    </div>
+                                    
+                                    <button onClick={handleNextDay} className="p-1.5 text-gray-400 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronRightIcon size={18} /></button>
+                                    
+                                    {!isToday && (
+                                        <button onClick={handleToday} className="ml-2 bg-sky-100 text-sky-700 hover:bg-sky-200 text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors">
+                                            오늘
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 리스트 아이템들 */}
+                            <div className="divide-y divide-gray-100">
+                                {currentSchedule.map((item) => {
+                                    // 과거/미래 날짜면 현재 교시(isCurrent) 하이라이트를 하지 않음
+                                    const showCurrentHighlight = isToday && item.isCurrent;
+
+                                    return (
+                                        <div key={item.period} className={`flex items-center p-4 lg:p-5 relative transition-colors ${showCurrentHighlight ? 'bg-[#F8FAFC]' : 'bg-white hover:bg-gray-50'}`}>
+                                            
+                                            {showCurrentHighlight && <div className="absolute left-0 top-0 bottom-0 w-[5px] bg-[#0EA5E9]"></div>}
+
+                                            <div className="w-[80px] lg:w-[100px] flex flex-col items-center justify-center shrink-0">
+                                                <span className={`font-extrabold text-[15px] lg:text-[16px] ${showCurrentHighlight ? 'text-[#0284C7]' : 'text-gray-700'}`}>{item.name}</span>
+                                                <span className="text-[10px] lg:text-[11px] text-gray-400 mt-1 font-medium">{item.time}</span>
+                                            </div>
+
+                                            <div className="flex-1 flex justify-between items-center pl-4 lg:pl-6 border-l border-gray-100 ml-2">
+                                                {item.status === 'in-use' ? (
+                                                    <>
+                                                        <div className="bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0] px-3 py-1.5 rounded-lg text-[13px] lg:text-[14px] font-bold shadow-sm">
+                                                            {item.usedBy.grade === '방과후' 
+                                                                ? `[방과후] ${item.usedBy.class}` 
+                                                                : `${item.usedBy.grade}학년 ${item.usedBy.class}반`}
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => handleAction(item.period, 'cancel')} className="px-3 lg:px-4 py-2 rounded-lg border border-red-200 bg-[#FEF2F2] text-red-600 text-[13px] lg:text-[14px] font-bold hover:bg-red-50 transition-colors">취소</button>
+                                                            <button onClick={() => handleAction(item.period, 'return')} className="px-3 lg:px-4 py-2 rounded-lg border border-sky-200 bg-[#F0F9FF] text-[#0369A1] text-[13px] lg:text-[14px] font-bold hover:bg-sky-50 transition-colors">반납</button>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="text-gray-400 text-[14px] lg:text-[15px] font-medium">대여 가능</div>
+                                                        <button onClick={() => handleAction(item.period, 'borrow')} className="px-5 lg:px-6 py-2 rounded-lg bg-gray-100 border border-gray-200 text-gray-600 hover:bg-[#E0F2FE] hover:text-[#0284C7] hover:border-[#BAE6FD] text-[13px] lg:text-[14px] font-bold transition-all shadow-sm">
+                                                            대여하기
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </main>
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
